@@ -1,4 +1,4 @@
-const CONTRACT_NAME = process.env.CONTRACT_NAME ||'near-nft'
+const CONTRACT_NAME = process.env.CONTRACT_NAME ||'nft.happybits.testnet'
 
 function getConfig(env) {
   switch (env) {
