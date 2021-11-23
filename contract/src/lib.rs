@@ -22,12 +22,9 @@ use near_contract_standards::non_fungible_token::NonFungibleToken;
 use near_contract_standards::non_fungible_token::{Token, TokenId};
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::LazyOption;
-use near_sdk::json_types::ValidAccountId;
 use near_sdk::{
-    env, near_bindgen, AccountId, BorshStorageKey, PanicOnDefault, Promise, PromiseOrValue,
+    env, near_bindgen, require, AccountId, BorshStorageKey, PanicOnDefault, Promise, PromiseOrValue,
 };
-
-near_sdk::setup_alloc!();
 
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize, PanicOnDefault)]
@@ -52,12 +49,12 @@ impl Contract {
     /// Initializes the contract owned by `owner_id` with
     /// default metadata (for example purposes only).
     #[init]
-    pub fn new_default_meta(owner_id: ValidAccountId) -> Self {
+    pub fn new_default_meta(owner_id: AccountId) -> Self {
         Self::new(
             owner_id,
             NFTContractMetadata {
                 spec: NFT_METADATA_SPEC.to_string(),
-                name: "HappyBits token".to_string(),
+                name: "HappyBits NFT".to_string(),
                 symbol: "HBITS".to_string(),
                 icon: Some(DATA_IMAGE_SVG_NEAR_ICON.to_string()),
                 base_uri: None,
@@ -68,8 +65,8 @@ impl Contract {
     }
 
     #[init]
-    pub fn new(owner_id: ValidAccountId, metadata: NFTContractMetadata) -> Self {
-        assert!(!env::state_exists(), "Already initialized");
+    pub fn new(owner_id: AccountId, metadata: NFTContractMetadata) -> Self {
+        require!(!env::state_exists(), "Already initialized");
         metadata.assert_valid();
         Self {
             tokens: NonFungibleToken::new(
@@ -83,23 +80,25 @@ impl Contract {
         }
     }
 
-    /// Mint a new token with ID=`token_id` belonging to `receiver_id`.
+    /// Mint a new token with ID=`token_id` belonging to `token_owner_id`.
     ///
     /// Since this example implements metadata, it also requires per-token metadata to be provided
     /// in this call. `self.tokens.mint` will also require it to be Some, since
     /// `StorageKey::TokenMetadata` was provided at initialization.
-    ///
-    /// `self.tokens.mint` will enforce `predecessor_account_id` to equal the `owner_id` given in
-    /// initialization call to `new`.
     #[payable]
     pub fn nft_mint(
         &mut self,
         token_id: TokenId,
-        receiver_id: ValidAccountId,
+        token_owner_id: AccountId,
         token_metadata: TokenMetadata,
     ) -> Token {
+        // assert_eq!(
+        //     env::predecessor_account_id(),
+        //     self.tokens.owner_id,
+        //     "Unauthorized"
+        // );
         self.tokens
-            .mint(token_id, receiver_id, Some(token_metadata))
+            .internal_mint(token_id, token_owner_id, Some(token_metadata))
     }
 }
 
@@ -118,13 +117,12 @@ impl NonFungibleTokenMetadataProvider for Contract {
 mod tests {
     use near_sdk::test_utils::{accounts, VMContextBuilder};
     use near_sdk::testing_env;
-    use near_sdk::MockedBlockchain;
 
     use super::*;
 
     const MINT_STORAGE_COST: u128 = 5870000000000000000000;
 
-    fn get_context(predecessor_account_id: ValidAccountId) -> VMContextBuilder {
+    fn get_context(predecessor_account_id: AccountId) -> VMContextBuilder {
         let mut builder = VMContextBuilder::new();
         builder
             .current_account_id(accounts(0))
@@ -182,7 +180,7 @@ mod tests {
         let token_id = "0".to_string();
         let token = contract.nft_mint(token_id.clone(), accounts(0), sample_token_metadata());
         assert_eq!(token.token_id, token_id);
-        assert_eq!(token.owner_id, accounts(0).to_string());
+        assert_eq!(token.owner_id, accounts(0));
         assert_eq!(token.metadata.unwrap(), sample_token_metadata());
         assert_eq!(token.approved_account_ids.unwrap(), HashMap::new());
     }
@@ -216,7 +214,7 @@ mod tests {
             .build());
         if let Some(token) = contract.nft_token(token_id.clone()) {
             assert_eq!(token.token_id, token_id);
-            assert_eq!(token.owner_id, accounts(1).to_string());
+            assert_eq!(token.owner_id, accounts(1));
             assert_eq!(token.metadata.unwrap(), sample_token_metadata());
             assert_eq!(token.approved_account_ids.unwrap(), HashMap::new());
         } else {
