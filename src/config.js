@@ -2,7 +2,7 @@ const CONTRACT_NAME = process.env.CONTRACT_NAME ||'nft.happybits.testnet'
 
 function getConfig(env) {
   switch (env) {
-
+  case 'production':
   case 'development':
   case 'testnet':
     return {
